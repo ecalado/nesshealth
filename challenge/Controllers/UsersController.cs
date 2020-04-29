@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using challenge.Data;
 using challenge.Models;
+using System.Diagnostics;
 
 namespace challenge.Controllers
 {
@@ -56,17 +57,18 @@ namespace challenge.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,Name,CPF,PhoneNumber")] User user)
         {
-            if (ModelState.IsValid)
+            if (IsNameOrCPFAlreadyRegistered(user.Name, user.CPF))
             {
-                if (IsNameOrCPFAlreadyRegistered(user.Name, user.CPF))
-                {
-                    throw new InvalidOperationException("O Nome ou CPF do Usuário já está cadastrado.");
-                }
+                ModelState.AddModelError("userExists", "Já existe um Usuário com o mesmo Nome ou CPF.");
+            }
 
+            if (ModelState.IsValid)
+            { 
                 _context.Add(user);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
+
             return View(user);
         }
 
@@ -96,6 +98,11 @@ namespace challenge.Controllers
             if (id != user.Id)
             {
                 return NotFound();
+            }
+
+            if (IsNameOrCPFAlreadyRegistered(user.Id, user.Name, user.CPF))
+            {
+                ModelState.AddModelError("userExists", "Já existe um Usuário com o mesmo Nome ou CPF.");
             }
 
             if (ModelState.IsValid)
@@ -150,6 +157,12 @@ namespace challenge.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        public IActionResult Error()
+        {
+            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        }
+
         private bool UserExists(int id)
         {
             return _context.User.Any(e => e.Id == id);
@@ -157,7 +170,18 @@ namespace challenge.Controllers
 
         private bool IsNameOrCPFAlreadyRegistered(string name, String cpf)
         {
-            return _context.User.Any(e => e.Name == name || e.CPF == cpf);
+            return IsNameOrCPFAlreadyRegistered(null, name, cpf);
+        }
+
+        private bool IsNameOrCPFAlreadyRegistered(int? id, string name, String cpf)
+        {
+            if (id.HasValue)
+            {
+                return _context.User.Any(e => e.Id != id && (e.Name == name || e.CPF == cpf));
+            } else
+            {
+                return _context.User.Any(e => e.Name == name || e.CPF == cpf);
+            }
         }
     }
 }
