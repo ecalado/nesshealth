@@ -8,22 +8,27 @@ using Microsoft.EntityFrameworkCore;
 using challenge.Data;
 using challenge.Models;
 using System.Diagnostics;
+using System.Linq.Expressions;
+using Challenge.Persistence;
 
 namespace challenge.Controllers
 {
     public class UsersController : Controller
     {
-        private readonly ChallengeContext _context;
+        private readonly IUnitOfWork _unitOfWork;
 
         public UsersController(ChallengeContext context)
         {
-            _context = context;
+            _unitOfWork = new UnitOfWork(context);
         }
 
         // GET: Users
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string sortBy, string orderedBy)
         {
-            return View(await _context.User.ToListAsync());
+            ViewData["OrderedByNameParm"] = String.IsNullOrEmpty(orderedBy) ? "desc" : "";
+            ViewData["OrderedByCPFParm"] = String.IsNullOrEmpty(orderedBy) ? "desc" : "";
+           
+            return View(await _unitOfWork.Users.GetAllPageable(sortBy, orderedBy));
         }
 
         // GET: Users/Details/5
@@ -34,8 +39,8 @@ namespace challenge.Controllers
                 return NotFound();
             }
 
-            var user = await _context.User
-                .FirstOrDefaultAsync(m => m.Id == id);
+            var user = await _unitOfWork.Users.Get(id.GetValueOrDefault());
+
             if (user == null)
             {
                 return NotFound();
@@ -57,15 +62,20 @@ namespace challenge.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,Name,CPF,PhoneNumber")] User user)
         {
-            if (IsNameOrCPFAlreadyRegistered(user.Name, user.CPF))
-            {
-                ModelState.AddModelError("userExists", "Já existe um Usuário com o mesmo Nome ou CPF.");
-            }
-
             if (ModelState.IsValid)
-            { 
-                _context.Add(user);
-                await _context.SaveChangesAsync();
+            {
+                try
+                {
+                    _unitOfWork.Users.Add(user);
+                    await _unitOfWork.Complete();
+                }
+                catch (ArgumentException ex)
+                {
+                    ModelState.AddModelError("userExists", ex.Message);
+
+                    return View(user);
+                }
+
                 return RedirectToAction(nameof(Index));
             }
 
@@ -80,7 +90,8 @@ namespace challenge.Controllers
                 return NotFound();
             }
 
-            var user = await _context.User.FindAsync(id);
+            var user = await _unitOfWork.Users.Get(id.GetValueOrDefault());
+
             if (user == null)
             {
                 return NotFound();
@@ -99,22 +110,17 @@ namespace challenge.Controllers
             {
                 return NotFound();
             }
-
-            if (IsNameOrCPFAlreadyRegistered(user.Id, user.Name, user.CPF))
-            {
-                ModelState.AddModelError("userExists", "Já existe um Usuário com o mesmo Nome ou CPF.");
-            }
-
+           
             if (ModelState.IsValid)
             {
                 try
                 {
-                    _context.Update(user);
-                    await _context.SaveChangesAsync();
+                    _unitOfWork.Users.Update(user);
+                    await _unitOfWork.Complete();
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    if (!UserExists(user.Id))
+                    if (!_unitOfWork.Users.Exists(user.Id))
                     {
                         return NotFound();
                     }
@@ -122,7 +128,13 @@ namespace challenge.Controllers
                     {
                         throw;
                     }
+                } catch (ArgumentException ex)
+                {
+                    ModelState.AddModelError("userExists", ex.Message);
+
+                    return View(user);
                 }
+
                 return RedirectToAction(nameof(Index));
             }
             return View(user);
@@ -136,8 +148,8 @@ namespace challenge.Controllers
                 return NotFound();
             }
 
-            var user = await _context.User
-                .FirstOrDefaultAsync(m => m.Id == id);
+            var user = await _unitOfWork.Users.Get(id.GetValueOrDefault());
+
             if (user == null)
             {
                 return NotFound();
@@ -151,9 +163,11 @@ namespace challenge.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
-            var user = await _context.User.FindAsync(id);
-            _context.User.Remove(user);
-            await _context.SaveChangesAsync();
+            var user = await _unitOfWork.Users.Get(id);
+
+            _unitOfWork.Users.Remove(user);
+            await _unitOfWork.Complete();
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -161,27 +175,6 @@ namespace challenge.Controllers
         public IActionResult Error()
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
-        }
-
-        private bool UserExists(int id)
-        {
-            return _context.User.Any(e => e.Id == id);
-        }
-
-        private bool IsNameOrCPFAlreadyRegistered(string name, String cpf)
-        {
-            return IsNameOrCPFAlreadyRegistered(null, name, cpf);
-        }
-
-        private bool IsNameOrCPFAlreadyRegistered(int? id, string name, String cpf)
-        {
-            if (id.HasValue)
-            {
-                return _context.User.Any(e => e.Id != id && (e.Name == name || e.CPF == cpf));
-            } else
-            {
-                return _context.User.Any(e => e.Name == name || e.CPF == cpf);
-            }
         }
     }
 }

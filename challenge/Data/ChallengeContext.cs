@@ -15,5 +15,6 @@ namespace challenge.Data
         }
 
         public DbSet<challenge.Models.User> User { get; set; }
+
     }
 }
