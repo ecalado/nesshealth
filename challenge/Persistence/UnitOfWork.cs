@@ -9,22 +9,21 @@ namespace Challenge.Persistence
     public class UnitOfWork : IUnitOfWork
     {
         private readonly ChallengeContext _context;
-        private readonly IUserRepository _users;
-       
+
         public UnitOfWork(ChallengeContext context)
         {
             _context = context;
-            _users = new UserRepository(_context);
+            Users = new UserRepository(_context);
         }
 
-        IUserRepository IUnitOfWork.Users => _users;
+        public IUserRepository Users { get; private set; }
 
-        async Task<int> IUnitOfWork.Complete()
+        public async Task<int> Complete()
         {
             return await _context.SaveChangesAsync();
         }
 
-        void IDisposable.Dispose()
+        public void Dispose()
         {
             _context.Dispose();
         }

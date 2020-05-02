@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Challenge.Data
 {
-    interface IRepository<TEntity> where TEntity : class
+    public interface IRepository<TEntity> where TEntity : class
     {
         ValueTask<TEntity> Get(int id);
         Task<IEnumerable<TEntity>> GetAll();

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Challenge.Persistence.Repositories
 {
-    interface IUserRepository : IRepository<User>
+    public interface IUserRepository : IRepository<User>
     {
         bool Exists(int id);
     }
